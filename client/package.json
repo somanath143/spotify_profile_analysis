@@ -19,7 +19,7 @@
       "pure": true
     }
   },
-  "homepage": "https://spotify-profile.herokuapp.com",
+  "homepage": ".",
   "proxy": "http://localhost:8888",
   "scripts": {
     "start": "set NODE_OPTIONS=--openssl-legacy-provider && react-scripts start",

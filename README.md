@@ -2,7 +2,9 @@
 
 > A web app for visualizing personalized Spotify data
 
-Built with a bunch of things, but to name a few:
+**Built by [somanath goudar](https://github.com/somanath143)**
+
+## Tech Stack
 
 - [Spotify Web API](https://developer.spotify.com/documentation/web-api/)
 - [Create React App](https://github.com/facebook/create-react-app)
@@ -18,29 +20,25 @@ Built with a bunch of things, but to name a few:
 1. `yarn && yarn client:install`
 1. `yarn dev`
 
-## Deploying to Heroku
+## Deploying to Render
 
-1. Create new heroku app
+1. Push your code to GitHub
 
-   ```bash
-   heroku create app-name
+2. Go to [Render](https://render.com) and create a new **Web Service** connected to your repo
+
+3. Set the following:
+   - **Build Command:** `yarn && cd client && yarn && yarn build`
+   - **Start Command:** `yarn start`
+
+4. Add environment variables:
+
+   ```
+   CLIENT_ID=your_spotify_client_id
+   CLIENT_SECRET=your_spotify_client_secret
+   REDIRECT_URI=https://your-app-name.onrender.com/callback
+   FRONTEND_URI=https://your-app-name.onrender.com
    ```
 
-2. Set Heroku environment variables
+5. Add `https://your-app-name.onrender.com/callback` as a Redirect URI in the Spotify application settings
 
-   ```bash
-   heroku config:set CLIENT_ID=XXXXX
-   heroku config:set CLIENT_SECRET=XXXXX
-   heroku config:set REDIRECT_URI=https://app-name.herokuapp.com/callback
-   heroku config:set FRONTEND_URI=https://app-name.herokuapp.com
-   ```
-
-3. Push to Heroku
-
-   ```bash
-   git push heroku master
-   ```
-
-4. Add `http://app-name.herokuapp.com/callback` as a Redirect URI in the spotify application settings
-
-5. Once the app is live on Heroku, hitting http://app-name.herokuapp.com/login should be the same as hitting http://localhost:8888/login
+6. Once the app is live on Render, navigate to `https://your-app-name.onrender.com/login` to start using it

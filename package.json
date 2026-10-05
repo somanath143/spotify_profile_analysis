@@ -5,15 +5,15 @@
   "main": "server/index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/somanath143/spotify-profile.git"
+    "url": "https://github.com/somanath143/spotify_profile_analysis.git"
   },
   "keywords": [],
   "author": "somanath goudar",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/somanath143/spotify-profile/issues"
+    "url": "https://github.com/somanath143/spotify_profile_analysis/issues"
   },
-  "homepage": "https://github.com/somanath143/spotify-profile#readme",
+  "homepage": "https://github.com/somanath143/spotify_profile_analysis#readme",
   "engines": {
     "node": ">=10.13.0"
   },
