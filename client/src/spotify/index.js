@@ -10,9 +10,9 @@ const setLocalAccessToken = token => {
   window.localStorage.setItem('spotify_access_token', token);
 };
 const setLocalRefreshToken = token => window.localStorage.setItem('spotify_refresh_token', token);
-const getTokenTimestamp = () => window.localStorage.getItem('spotify_token_timestamp');
-const getLocalAccessToken = () => window.localStorage.getItem('spotify_access_token');
-const getLocalRefreshToken = () => window.localStorage.getItem('spotify_refresh_token');
+export const getTokenTimestamp = () => window.localStorage.getItem('spotify_token_timestamp');
+export const getLocalAccessToken = () => window.localStorage.getItem('spotify_access_token');
+export const getLocalRefreshToken = () => window.localStorage.getItem('spotify_refresh_token');
 
 // Refresh the token
 const refreshAccessToken = async () => {
@@ -90,11 +90,21 @@ export const logout = () => {
   window.location.href = '/';
 };
 
-// Axios 401 Interceptor to handle expired/invalid tokens automatically
+// Axios request interceptor to always attach active token
+axios.interceptors.request.use(config => {
+  const currentToken = getLocalAccessToken() || token;
+  if (currentToken) {
+    config.headers.Authorization = `Bearer ${currentToken}`;
+  }
+  return config;
+});
+
+// Axios response interceptor: only logout on 401
 axios.interceptors.response.use(
   response => response,
   error => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+    if (error.response && error.response.status === 401) {
+      console.warn('Spotify 401 Unauthorized - logging out');
       logout();
     }
     return Promise.reject(error);
@@ -104,7 +114,9 @@ axios.interceptors.response.use(
 // API CALLS ***************************************************************************************
 
 const headers = {
-  Authorization: `Bearer ${token}`,
+  get Authorization() {
+    return `Bearer ${getLocalAccessToken() || token}`;
+  },
   'Content-Type': 'application/json',
 };
 
@@ -303,18 +315,38 @@ export const getTrackAudioAnalysis = trackId =>
 export const getTrackAudioFeatures = trackId =>
   axios.get(`https://api.spotify.com/v1/audio-features/${trackId}`, { headers });
 
-export const getUserInfo = () =>
-  axios
-    .all([getUser(), getFollowing(), getPlaylists(), getTopArtistsLong(), getTopTracksLong()])
-    .then(
-      axios.spread((user, followedArtists, playlists, topArtists, topTracks) => ({
-        user: user.data,
-        followedArtists: followedArtists.data,
-        playlists: playlists.data,
-        topArtists: topArtists.data,
-        topTracks: topTracks.data,
-      })),
-    );
+export const getUserInfo = async () => {
+  const [user, followedArtists, playlists, topArtists, topTracks] = await Promise.all([
+    getUser().catch(err => {
+      console.error('Failed to get user profile:', err);
+      return { data: null };
+    }),
+    getFollowing().catch(err => {
+      console.warn('Failed to get followed artists:', err);
+      return { data: { artists: { items: [], total: 0 } } };
+    }),
+    getPlaylists().catch(err => {
+      console.warn('Failed to get playlists:', err);
+      return { data: { items: [], total: 0 } };
+    }),
+    getTopArtistsLong().catch(err => {
+      console.warn('Failed to get top artists:', err);
+      return { data: { items: [], total: 0 } };
+    }),
+    getTopTracksLong().catch(err => {
+      console.warn('Failed to get top tracks:', err);
+      return { data: { items: [], total: 0 } };
+    }),
+  ]);
+
+  return {
+    user: user ? user.data : null,
+    followedArtists: followedArtists ? followedArtists.data : null,
+    playlists: playlists ? playlists.data : null,
+    topArtists: topArtists ? topArtists.data : null,
+    topTracks: topTracks ? topTracks.data : null,
+  };
+};
 
 export const getTrackInfo = trackId =>
   axios

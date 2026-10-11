@@ -4,8 +4,8 @@
 
 require('dotenv').config();
 
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const CLIENT_ID = process.env.CLIENT_ID ? process.env.CLIENT_ID.trim() : '';
+const CLIENT_SECRET = process.env.CLIENT_SECRET ? process.env.CLIENT_SECRET.trim() : '';
 
 console.log('--- DEBUG ---');
 console.log('CLIENT_ID loaded:', CLIENT_ID ? 'Yes (' + CLIENT_ID.substring(0, 5) + '...)' : 'No');
@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 8888;
 
 const getFrontendUri = req => {
   if (process.env.FRONTEND_URI) {
-    return process.env.FRONTEND_URI.replace(/\/+$/, '');
+    return process.env.FRONTEND_URI.trim().replace(/\/+$/, '');
   }
   if (process.env.NODE_ENV === 'production') {
     const proto = req.headers['x-forwarded-proto'] || req.protocol;
@@ -26,7 +26,7 @@ const getFrontendUri = req => {
 
 const getRedirectUri = req => {
   if (process.env.REDIRECT_URI) {
-    return process.env.REDIRECT_URI;
+    return process.env.REDIRECT_URI.trim();
   }
   if (process.env.NODE_ENV === 'production') {
     const proto = req.headers['x-forwarded-proto'] || req.protocol;
@@ -128,9 +128,6 @@ if (cluster.isMaster) {
   });
 
   app.get('/callback', function (req, res) {
-    // your application requests refresh and access tokens
-    // after checking the state parameter
-
     const code = req.query.code || null;
     const state = req.query.state || null;
     const storedState = req.cookies ? req.cookies[stateKey] : null;
@@ -139,50 +136,56 @@ if (cluster.isMaster) {
 
     console.log(`[CALLBACK] code: ${Boolean(code)}, state: ${state}, storedState: ${storedState}`);
 
-    // If state is completely missing from Spotify callback, or if storedState exists and doesn't match
-    if (state === null || (storedState && state !== storedState)) {
+    if (!code) {
+      console.error('[CALLBACK ERROR] No authorization code returned from Spotify');
+      res.redirect(`${frontendUri}/#${querystring.stringify({ error: 'missing_code' })}`);
+      return;
+    }
+
+    // Only reject if a stored state was recorded AND it doesn't match
+    if (storedState && state !== storedState) {
       console.error(`[CALLBACK ERROR] State mismatch. state: ${state}, storedState: ${storedState}`);
       res.redirect(`${frontendUri}/#${querystring.stringify({ error: 'state_mismatch' })}`);
-    } else {
-      res.clearCookie(stateKey);
-      const authOptions = {
-        url: 'https://accounts.spotify.com/api/token',
-        form: {
-          code: code,
-          redirect_uri: redirectUri,
-          grant_type: 'authorization_code',
-        },
-        headers: {
-          Authorization: `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString(
-            'base64',
-          )}`,
-        },
-        json: true,
-      };
-
-      request.post(authOptions, function (error, response, body) {
-        if (!error && response.statusCode === 200) {
-          const access_token = body.access_token;
-          const refresh_token = body.refresh_token;
-
-          console.log('[CALLBACK SUCCESS] Successfully retrieved tokens from Spotify!');
-          // we can also pass the token to the browser to make requests from there
-          res.redirect(
-            `${frontendUri}/#${querystring.stringify({
-              access_token,
-              refresh_token,
-            })}`,
-          );
-        } else {
-          console.error('[CALLBACK ERROR] Spotify token exchange failed:', {
-            statusCode: response && response.statusCode,
-            body: body,
-            error: error,
-          });
-          res.redirect(`${frontendUri}/#${querystring.stringify({ error: 'invalid_token' })}`);
-        }
-      });
+      return;
     }
+
+    res.clearCookie(stateKey);
+    const authOptions = {
+      url: 'https://accounts.spotify.com/api/token',
+      form: {
+        code: code,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      },
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString(
+          'base64',
+        )}`,
+      },
+      json: true,
+    };
+
+    request.post(authOptions, function (error, response, body) {
+      if (!error && response.statusCode === 200) {
+        const access_token = body.access_token;
+        const refresh_token = body.refresh_token;
+
+        console.log('[CALLBACK SUCCESS] Successfully retrieved tokens from Spotify!');
+        res.redirect(
+          `${frontendUri}/#${querystring.stringify({
+            access_token,
+            refresh_token,
+          })}`,
+        );
+      } else {
+        console.error('[CALLBACK ERROR] Spotify token exchange failed:', {
+          statusCode: response && response.statusCode,
+          body: body,
+          error: error,
+        });
+        res.redirect(`${frontendUri}/#${querystring.stringify({ error: 'invalid_token' })}`);
+      }
+    });
   });
 
   app.get('/refresh_token', function (req, res) {

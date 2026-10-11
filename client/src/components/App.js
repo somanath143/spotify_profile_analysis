@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { token } from '../spotify';
+import { token, getLocalAccessToken } from '../spotify';
 
 import LoginScreen from './LoginScreen';
 import Profile from './Profile';
@@ -13,10 +13,10 @@ const AppContainer = styled.div`
 `;
 
 const App = () => {
-  const [accessToken, setAccessToken] = useState('');
+  const [accessToken, setAccessToken] = useState(() => token || getLocalAccessToken() || '');
 
   useEffect(() => {
-    setAccessToken(token);
+    setAccessToken(token || getLocalAccessToken() || '');
   }, []);
 
   return (

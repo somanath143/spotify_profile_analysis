@@ -203,7 +203,7 @@ const User = () => {
         <Main>
           <Header>
             <Avatar>
-              {user.images.length > 0 ? (
+              {user.images && user.images.length > 0 ? (
                 <img src={user.images[0].url} alt="avatar" />
               ) : (
                 <NoAvatar>
@@ -211,17 +211,21 @@ const User = () => {
                 </NoAvatar>
               )}
             </Avatar>
-            <UserName href={user.external_urls.spotify} target="_blank" rel="noopener noreferrer">
+            <UserName href={user.external_urls ? user.external_urls.spotify : '#'} target="_blank" rel="noopener noreferrer">
               <Name>{user.display_name}</Name>
             </UserName>
             <Stats>
               <Stat>
-                <Number>{user.followers.total}</Number>
+                <Number>{user.followers ? user.followers.total : 0}</Number>
                 <NumLabel>Followers</NumLabel>
               </Stat>
-              {followedArtists && (
+              {followedArtists && followedArtists.artists && (
                 <Stat>
-                  <Number>{followedArtists.artists.items.length}</Number>
+                  <Number>
+                    {followedArtists.artists.total !== undefined
+                      ? followedArtists.artists.total
+                      : (followedArtists.artists.items && followedArtists.artists.items.length) || 0}
+                  </Number>
                   <NumLabel>Following</NumLabel>
                 </Stat>
               )}
