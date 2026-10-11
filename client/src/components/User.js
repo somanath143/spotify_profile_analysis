@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from '@reach/router';
 import { getUserInfo, logout } from '../spotify';
-import { catchErrors } from '../utils';
 
 import { IconUser, IconInfo } from './icons';
 import Loader from './Loader';
@@ -182,93 +181,144 @@ const User = () => {
   const [playlists, setPlaylists] = useState(null);
   const [topArtists, setTopArtists] = useState(null);
   const [topTracks, setTopTracks] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
+    let isMounted = true;
     const fetchData = async () => {
-      const { user, followedArtists, playlists, topArtists, topTracks } = await getUserInfo();
-      setUser(user);
-      setFollowedArtists(followedArtists);
-      setPlaylists(playlists);
-      setTopArtists(topArtists);
-      setTopTracks(topTracks);
+      try {
+        setLoading(true);
+        const data = await getUserInfo();
+        if (!isMounted) return;
+
+        if (data && data.user) {
+          setUser(data.user);
+          setFollowedArtists(data.followedArtists);
+          setPlaylists(data.playlists);
+          setTopArtists(data.topArtists);
+          setTopTracks(data.topTracks);
+        } else {
+          setErrorMsg('Unable to retrieve profile from Spotify API.');
+        }
+      } catch (err) {
+        console.error('Fetch error:', err);
+        if (isMounted) {
+          setErrorMsg(err.message || 'Error loading profile.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     };
-    catchErrors(fetchData());
+    fetchData();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const totalPlaylists = playlists ? playlists.total : 0;
 
+  if (loading) {
+    return <Loader />;
+  }
+
+  if (errorMsg || !user) {
+    return (
+      <Main>
+        <Header>
+          <Name>Dashboard Notice</Name>
+          <p style={{ marginTop: '20px', color: '#9b9b9b', fontSize: '18px' }}>
+            {errorMsg || 'Unable to load profile data.'}
+          </p>
+          <p style={{ marginTop: '10px', fontSize: '14px', color: '#777', maxWidth: '500px', textAlign: 'center' }}>
+            If your Spotify Developer App is in <b>Development Mode</b>, please make sure your Spotify account email is added to <b>Users and Access</b> in your Spotify Developer Dashboard.
+          </p>
+          <LogoutButton onClick={logout} style={{ marginTop: '30px', cursor: 'pointer' }}>
+            Log Out & Re-Authenticate
+          </LogoutButton>
+        </Header>
+      </Main>
+    );
+  }
+
   return (
     <React.Fragment>
-      {user ? (
-        <Main>
-          <Header>
-            <Avatar>
-              {user.images && user.images.length > 0 ? (
-                <img src={user.images[0].url} alt="avatar" />
-              ) : (
-                <NoAvatar>
-                  <IconUser />
-                </NoAvatar>
-              )}
-            </Avatar>
-            <UserName href={user.external_urls ? user.external_urls.spotify : '#'} target="_blank" rel="noopener noreferrer">
-              <Name>{user.display_name}</Name>
-            </UserName>
-            <Stats>
+      <Main>
+        <Header>
+          <Avatar>
+            {user.images && user.images.length > 0 ? (
+              <img src={user.images[0].url} alt="avatar" />
+            ) : (
+              <NoAvatar>
+                <IconUser />
+              </NoAvatar>
+            )}
+          </Avatar>
+          <UserName href={user.external_urls ? user.external_urls.spotify : '#'} target="_blank" rel="noopener noreferrer">
+            <Name>{user.display_name}</Name>
+          </UserName>
+          <Stats>
+            <Stat>
+              <Number>{user.followers ? user.followers.total : 0}</Number>
+              <NumLabel>Followers</NumLabel>
+            </Stat>
+            {followedArtists && followedArtists.artists && (
               <Stat>
-                <Number>{user.followers ? user.followers.total : 0}</Number>
-                <NumLabel>Followers</NumLabel>
+                <Number>
+                  {followedArtists.artists.total !== undefined
+                    ? followedArtists.artists.total
+                    : (followedArtists.artists.items && followedArtists.artists.items.length) || 0}
+                </Number>
+                <NumLabel>Following</NumLabel>
               </Stat>
-              {followedArtists && followedArtists.artists && (
-                <Stat>
-                  <Number>
-                    {followedArtists.artists.total !== undefined
-                      ? followedArtists.artists.total
-                      : (followedArtists.artists.items && followedArtists.artists.items.length) || 0}
-                  </Number>
-                  <NumLabel>Following</NumLabel>
-                </Stat>
-              )}
-              {totalPlaylists && (
-                <Stat>
-                  <Link to="playlists">
-                    <Number>{totalPlaylists}</Number>
-                    <NumLabel>Playlists</NumLabel>
-                  </Link>
-                </Stat>
-              )}
-            </Stats>
-            <LogoutButton onClick={logout}>Logout</LogoutButton>
-          </Header>
+            )}
+            {totalPlaylists && (
+              <Stat>
+                <Link to="playlists">
+                  <Number>{totalPlaylists}</Number>
+                  <NumLabel>Playlists</NumLabel>
+                </Link>
+              </Stat>
+            )}
+          </Stats>
+          <LogoutButton onClick={logout}>Logout</LogoutButton>
+        </Header>
 
-          <Preview>
-            <Tracklist>
-              <TracklistHeading>
-                <h3>Top Artists of All Time</h3>
-                <MoreButton to="/artists">See More</MoreButton>
-              </TracklistHeading>
-              <div>
-                {topArtists ? (
-                  <ul>
-                    {topArtists.items.slice(0, 10).map((artist, i) => (
-                      <Artist key={i}>
-                        <ArtistArtwork to={`/artist/${artist.id}`}>
-                          {artist.images.length && <img src={artist.images[2].url} alt="Artist" />}
-                          <Mask>
-                            <IconInfo />
-                          </Mask>
-                        </ArtistArtwork>
-                        <ArtistName to={`/artist/${artist.id}`}>
-                          <span>{artist.name}</span>
-                        </ArtistName>
-                      </Artist>
-                    ))}
-                  </ul>
-                ) : (
-                  <Loader />
-                )}
-              </div>
-            </Tracklist>
+        <Preview>
+          <Tracklist>
+            <TracklistHeading>
+              <h3>Top Artists of All Time</h3>
+              <MoreButton to="/artists">See More</MoreButton>
+            </TracklistHeading>
+            <div>
+              {topArtists ? (
+                <ul>
+                  {topArtists.items.slice(0, 10).map((artist, i) => (
+                    <Artist key={i}>
+                      <ArtistArtwork to={`/artist/${artist.id}`}>
+                        {artist.images && artist.images.length > 0 && (
+                          <img
+                            src={artist.images[2] ? artist.images[2].url : artist.images[0].url}
+                            alt="Artist"
+                          />
+                        )}
+                        <Mask>
+                          <IconInfo />
+                        </Mask>
+                      </ArtistArtwork>
+                      <ArtistName to={`/artist/${artist.id}`}>
+                        <span>{artist.name}</span>
+                      </ArtistName>
+                    </Artist>
+                  ))}
+                </ul>
+              ) : (
+                <Loader />
+              )}
+            </div>
+          </Tracklist>
 
             <Tracklist>
               <TracklistHeading>
@@ -287,9 +337,6 @@ const User = () => {
             </Tracklist>
           </Preview>
         </Main>
-      ) : (
-        <Loader />
-      )}
     </React.Fragment>
   );
 };
