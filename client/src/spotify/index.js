@@ -42,9 +42,26 @@ export const getAccessToken = () => {
   const { error, access_token, refresh_token } = getHashParams();
 
   if (error) {
-    console.error(error);
-    logout();
+    console.error('Spotify Authentication Error:', error);
+    window.localStorage.removeItem('spotify_token_timestamp');
+    window.localStorage.removeItem('spotify_access_token');
+    window.localStorage.removeItem('spotify_refresh_token');
+    if (window.location.hash) {
+      window.history.replaceState(null, null, window.location.pathname);
+    }
     return null;
+  }
+
+  // If a new access token is returned from Spotify, save it immediately
+  if (access_token) {
+    setLocalAccessToken(access_token);
+    if (refresh_token) {
+      setLocalRefreshToken(refresh_token);
+    }
+    if (window.location.hash) {
+      window.history.replaceState(null, null, window.location.pathname);
+    }
+    return access_token;
   }
 
   const tokenTimestamp = getTokenTimestamp();
@@ -56,13 +73,6 @@ export const getAccessToken = () => {
   }
 
   const localAccessToken = getLocalAccessToken();
-
-  // If there is no ACCESS token in local storage, set it and return `access_token` from params
-  if ((!localAccessToken || localAccessToken === 'undefined') && access_token) {
-    setLocalAccessToken(access_token);
-    setLocalRefreshToken(refresh_token);
-    return access_token;
-  }
 
   if (localAccessToken && localAccessToken !== 'undefined') {
     return localAccessToken;

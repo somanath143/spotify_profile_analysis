@@ -101,9 +101,16 @@ if (cluster.isMaster) {
 
   app.get('/login', function (req, res) {
     const state = generateRandomString(16);
-    res.cookie(stateKey, state);
+    res.cookie(stateKey, state, {
+      maxAge: 3600000,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    });
 
     const redirectUri = getRedirectUri(req);
+    console.log(`[LOGIN] User logging in. redirectUri: ${redirectUri}`);
+
     // your application requests authorization
     const scope =
       'user-read-private user-read-email user-read-recently-played user-top-read user-follow-read user-follow-modify playlist-read-private playlist-read-collaborative playlist-modify-public';
@@ -115,6 +122,7 @@ if (cluster.isMaster) {
         scope: scope,
         redirect_uri: redirectUri,
         state: state,
+        show_dialog: true,
       })}`,
     );
   });
@@ -129,7 +137,11 @@ if (cluster.isMaster) {
     const frontendUri = getFrontendUri(req);
     const redirectUri = getRedirectUri(req);
 
-    if (state === null || state !== storedState) {
+    console.log(`[CALLBACK] code: ${Boolean(code)}, state: ${state}, storedState: ${storedState}`);
+
+    // If state is completely missing from Spotify callback, or if storedState exists and doesn't match
+    if (state === null || (storedState && state !== storedState)) {
+      console.error(`[CALLBACK ERROR] State mismatch. state: ${state}, storedState: ${storedState}`);
       res.redirect(`${frontendUri}/#${querystring.stringify({ error: 'state_mismatch' })}`);
     } else {
       res.clearCookie(stateKey);
@@ -153,6 +165,7 @@ if (cluster.isMaster) {
           const access_token = body.access_token;
           const refresh_token = body.refresh_token;
 
+          console.log('[CALLBACK SUCCESS] Successfully retrieved tokens from Spotify!');
           // we can also pass the token to the browser to make requests from there
           res.redirect(
             `${frontendUri}/#${querystring.stringify({
@@ -161,6 +174,11 @@ if (cluster.isMaster) {
             })}`,
           );
         } else {
+          console.error('[CALLBACK ERROR] Spotify token exchange failed:', {
+            statusCode: response && response.statusCode,
+            body: body,
+            error: error,
+          });
           res.redirect(`${frontendUri}/#${querystring.stringify({ error: 'invalid_token' })}`);
         }
       });
