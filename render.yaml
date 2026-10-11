@@ -3,7 +3,7 @@ services:
     name: spotify-profile
     runtime: node
     plan: free
-    buildCommand: yarn && cd client && yarn && yarn build
+    buildCommand: yarn && cd client && yarn && NODE_OPTIONS=--openssl-legacy-provider yarn build
     startCommand: yarn start
     envVars:
       - key: CLIENT_ID
@@ -16,3 +16,5 @@ services:
         sync: false
       - key: NODE_ENV
         value: production
+      - key: NODE_OPTIONS
+        value: --openssl-legacy-provider
