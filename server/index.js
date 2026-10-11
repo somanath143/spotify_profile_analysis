@@ -10,14 +10,31 @@ const CLIENT_SECRET = process.env.CLIENT_SECRET;
 console.log('--- DEBUG ---');
 console.log('CLIENT_ID loaded:', CLIENT_ID ? 'Yes (' + CLIENT_ID.substring(0, 5) + '...)' : 'No');
 console.log('-------------');
-let REDIRECT_URI = process.env.REDIRECT_URI || 'http://localhost:8888/callback';
-let FRONTEND_URI = process.env.FRONTEND_URI || 'http://localhost:3000';
 const PORT = process.env.PORT || 8888;
 
-if (process.env.NODE_ENV !== 'production') {
-  REDIRECT_URI = process.env.REDIRECT_URI || 'http://localhost:8888/callback';
-  FRONTEND_URI = process.env.FRONTEND_URI || 'http://localhost:3000';
-}
+const getFrontendUri = req => {
+  if (process.env.FRONTEND_URI) {
+    return process.env.FRONTEND_URI.replace(/\/+$/, '');
+  }
+  if (process.env.NODE_ENV === 'production') {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    return `${proto}://${host}`;
+  }
+  return 'http://localhost:3000';
+};
+
+const getRedirectUri = req => {
+  if (process.env.REDIRECT_URI) {
+    return process.env.REDIRECT_URI;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    return `${proto}://${host}/callback`;
+  }
+  return 'http://localhost:8888/callback';
+};
 
 const express = require('express');
 const request = require('request');
@@ -61,6 +78,7 @@ if (cluster.isMaster) {
   });
 } else {
   const app = express();
+  app.enable('trust proxy');
 
   app
     .use(cors())
@@ -85,6 +103,7 @@ if (cluster.isMaster) {
     const state = generateRandomString(16);
     res.cookie(stateKey, state);
 
+    const redirectUri = getRedirectUri(req);
     // your application requests authorization
     const scope =
       'user-read-private user-read-email user-read-recently-played user-top-read user-follow-read user-follow-modify playlist-read-private playlist-read-collaborative playlist-modify-public';
@@ -94,7 +113,7 @@ if (cluster.isMaster) {
         response_type: 'code',
         client_id: CLIENT_ID,
         scope: scope,
-        redirect_uri: REDIRECT_URI,
+        redirect_uri: redirectUri,
         state: state,
       })}`,
     );
@@ -107,16 +126,18 @@ if (cluster.isMaster) {
     const code = req.query.code || null;
     const state = req.query.state || null;
     const storedState = req.cookies ? req.cookies[stateKey] : null;
+    const frontendUri = getFrontendUri(req);
+    const redirectUri = getRedirectUri(req);
 
     if (state === null || state !== storedState) {
-      res.redirect(`${FRONTEND_URI}/#${querystring.stringify({ error: 'state_mismatch' })}`);
+      res.redirect(`${frontendUri}/#${querystring.stringify({ error: 'state_mismatch' })}`);
     } else {
       res.clearCookie(stateKey);
       const authOptions = {
         url: 'https://accounts.spotify.com/api/token',
         form: {
           code: code,
-          redirect_uri: REDIRECT_URI,
+          redirect_uri: redirectUri,
           grant_type: 'authorization_code',
         },
         headers: {
@@ -134,13 +155,13 @@ if (cluster.isMaster) {
 
           // we can also pass the token to the browser to make requests from there
           res.redirect(
-            `${FRONTEND_URI}/#${querystring.stringify({
+            `${frontendUri}/#${querystring.stringify({
               access_token,
               refresh_token,
             })}`,
           );
         } else {
-          res.redirect(`${FRONTEND_URI}/#${querystring.stringify({ error: 'invalid_token' })}`);
+          res.redirect(`${frontendUri}/#${querystring.stringify({ error: 'invalid_token' })}`);
         }
       });
     }

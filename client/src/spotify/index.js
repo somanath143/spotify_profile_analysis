@@ -231,7 +231,11 @@ export const getPlaylistTracks = playlistId =>
 /**
  * Return a comma separated string of track IDs from the given array of tracks
  */
-const getTrackIds = tracks => tracks.map(({ track }) => track.id).join(',');
+const getTrackIds = tracks =>
+  (tracks || [])
+    .filter(item => item && item.track && item.track.id)
+    .map(({ track }) => track.id)
+    .join(',');
 
 /**
  * Get Audio Features for Several Tracks
@@ -239,6 +243,9 @@ const getTrackIds = tracks => tracks.map(({ track }) => track.id).join(',');
  */
 export const getAudioFeaturesForTracks = tracks => {
   const ids = getTrackIds(tracks);
+  if (!ids) {
+    return Promise.resolve({ data: { audio_features: [] } });
+  }
   return axios.get(`https://api.spotify.com/v1/audio-features?ids=${ids}`, { headers });
 };
 
@@ -250,13 +257,15 @@ export const getRecommendationsForTracks = tracks => {
   if (!tracks || !tracks.length) {
     return Promise.resolve({ data: { tracks: [] } });
   }
-  const shuffledTracks = [...tracks].sort(() => 0.5 - Math.random());
+  const validTracks = tracks.filter(item => item && item.track && item.track.id);
+  if (!validTracks.length) {
+    return Promise.resolve({ data: { tracks: [] } });
+  }
+  const shuffledTracks = [...validTracks].sort(() => 0.5 - Math.random());
   const seed_tracks = getTrackIds(shuffledTracks.slice(0, 5));
-  const seed_artists = '';
-  const seed_genres = '';
 
   return axios.get(
-    `https://api.spotify.com/v1/recommendations?seed_tracks=${seed_tracks}&seed_artists=${seed_artists}&seed_genres=${seed_genres}`,
+    `https://api.spotify.com/v1/recommendations?seed_tracks=${seed_tracks}&seed_artists=&seed_genres=`,
     {
       headers,
     },
